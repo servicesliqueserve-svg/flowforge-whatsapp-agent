@@ -124,9 +124,12 @@ async function getForgeReply(userId, userMessage) {
       }
     );
 
-    const reply =
-      response.data?.choices?.[0]?.message?.content ||
-      "Sorry, I had a hiccup. Please try again in a moment 🙏";
+    console.log("[Forge] Meta API status:", response.status);
+console.log("[Forge] Meta API response:", JSON.stringify(response.data));
+
+const reply =
+  response.data?.choices?.[0]?.message?.content ||
+  "Sorry, I had a hiccup. Please try again in a moment 🙏";
 
     addToSession(userId, "assistant", reply);
 
