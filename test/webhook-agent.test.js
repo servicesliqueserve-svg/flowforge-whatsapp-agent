@@ -3,6 +3,10 @@ const assert = require("node:assert/strict");
 const axios = require("axios");
 const { verifyWebhook, handleIncoming } = require("../webhook");
 const { getForgeReply } = require("../agent");
+const {
+  verifyRequestSignature,
+  verifyWebhookSignature,
+} = require("../webhook-signature");
 
 function createResponse() {
   return {
@@ -78,6 +82,70 @@ test("incoming webhook acknowledges unsupported events without external calls", 
   assert.equal(res.statusCode, 200);
 });
 
+test("Meta webhook signatures accept an authentic raw request body", () => {
+  const previousSecret = process.env.META_APP_SECRET;
+  process.env.META_APP_SECRET = "test-meta-app-secret";
+  const rawBody = Buffer.from('{"object":"whatsapp_business_account"}');
+  const signature = require("node:crypto")
+    .createHmac("sha256", process.env.META_APP_SECRET)
+    .update(rawBody)
+    .digest("hex");
+
+  try {
+    assert.doesNotThrow(() =>
+      verifyWebhookSignature(
+        { headers: { "x-hub-signature-256": `sha256=${signature}` } },
+        {},
+        rawBody
+      )
+    );
+  } finally {
+    if (previousSecret === undefined) delete process.env.META_APP_SECRET;
+    else process.env.META_APP_SECRET = previousSecret;
+  }
+});
+
+test("Meta webhook signatures reject missing secrets and invalid signatures", () => {
+  const previousSecret = process.env.META_APP_SECRET;
+  const previousAppSecret = process.env.APP_SECRET;
+  const rawBody = Buffer.from('{"object":"whatsapp_business_account"}');
+
+  try {
+    delete process.env.META_APP_SECRET;
+    delete process.env.APP_SECRET;
+    assert.throws(
+      () => verifyWebhookSignature({ headers: {} }, {}, rawBody),
+      /META_APP_SECRET must be set/
+    );
+
+    process.env.META_APP_SECRET = "test-meta-app-secret";
+    assert.throws(
+      () =>
+        verifyWebhookSignature(
+          { headers: { "x-hub-signature-256": `sha256=${"0".repeat(64)}` } },
+          {},
+          rawBody
+        ),
+      /signature validation failed/
+    );
+  } finally {
+    if (previousSecret === undefined) delete process.env.META_APP_SECRET;
+    else process.env.META_APP_SECRET = previousSecret;
+    if (previousAppSecret === undefined) delete process.env.APP_SECRET;
+    else process.env.APP_SECRET = previousAppSecret;
+  }
+});
+
+test("signature middleware does not block the website chat endpoint", () => {
+  assert.doesNotThrow(() =>
+    verifyRequestSignature(
+      { method: "POST", path: "/api/whatsapp/message", headers: {} },
+      {},
+      Buffer.from('{"message":"hello"}')
+    )
+  );
+});
+
 test("Forge sends a chat-completion request and returns the model reply", async () => {
   const originalPost = axios.post;
   const originalLog = console.log;
@@ -112,4 +180,3 @@ test("Forge sends a chat-completion request and returns the model reply", async 
     else process.env.META_MODEL_API_KEY = previousKey;
   }
 });
-
