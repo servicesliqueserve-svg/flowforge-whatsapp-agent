@@ -1,6 +1,6 @@
 # FlowForge WhatsApp Agent — Backend
 
-Automatically replies to WhatsApp messages on **062 822 7013** using the Forge AI agent (powered by Claude).
+Automatically replies to WhatsApp messages on **062 822 7013** using the Forge AI agent, powered by Meta Model API and Muse Spark.
 
 ---
 
