@@ -10,7 +10,7 @@ Automatically replies to WhatsApp messages on **062 822 7013** using the Forge A
 flowforge-whatsapp-backend/
 ├── index.js          ← Express server entry point
 ├── webhook.js        ← Meta webhook verification + message routing
-├── agent.js          ← Forge AI agent (Claude + conversation memory)
+├── agent.js          ← Forge AI agent (Meta Model API + conversation memory)
 ├── whatsapp.js       ← WhatsApp Cloud API sender
 ├── .env.example      ← Environment variable template
 └── README.md
@@ -37,6 +37,7 @@ Then open `.env` and fill in your credentials:
 | `WHATSAPP_BUSINESS_ACCOUNT_ID` | Meta Dev Dashboard → WhatsApp → API Setup |
 | `WHATSAPP_ACCESS_TOKEN` | Meta Business Suite → System Users → Generate Token |
 | `WHATSAPP_VERIFY_TOKEN` | You choose this (e.g. `flowforge2024`) |
+| `META_APP_SECRET` | Meta Developer Dashboard → App Settings → Basic |
 | `META_MODEL_API_KEY` | dev.meta.ai → API Keys → Create API Key |
 
 ### 3. Run locally
@@ -52,7 +53,7 @@ Server starts on `http://localhost:3000`
 1. Go to **railway.app** and sign up (free)
 2. Click **New Project → Deploy from GitHub**
 3. Push this folder to a GitHub repo first, then connect it
-4. In Railway dashboard → **Variables**, add all 5 env variables from `.env.example`
+4. In Railway dashboard → **Variables**, add all required env variables from `.env.example`
 5. Railway gives you a public URL like `https://flowforge-agent.up.railway.app`
 
 ---
