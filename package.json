@@ -15,7 +15,8 @@
     "whatsapp",
     "ai-agent",
     "flowforge",
-    "claude"
+    "meta-model-api",
+    "muse-spark"
   ],
   "author": "FlowForge AI Consulting",
   "license": "ISC",
