@@ -1,11 +1,12 @@
 require("dotenv").config();
 const express = require("express");
+const { verifyRequestSignature } = require("./webhook-signature");
 const { handleIncoming, verifyWebhook } = require("./webhook");
 const { onboardAgent, getStoredAgentId } = require("./onboarding");
 const { getForgeReply } = require("./agent");
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ verify: verifyRequestSignature }));
 
 const PORT = process.env.PORT || 3000;
 
