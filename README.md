@@ -98,9 +98,9 @@ Memory resets when the server restarts. For persistent memory across restarts, i
 
 ## Contact
 
-📧 FlowForge-Ai7@protonmail.com  
+📧 info@flowforgei.co.za  
 📞 062 822 7013  
-🌐 flowforge.ai
+🌐 flowforgei.co.za
 
 ---
 
@@ -116,7 +116,7 @@ This backend uses the official **Meta Business AI Agent Onboarding API** to regi
 ```bash
 npm start
 ```
-The server auto-attempts onboarding on startup if credentials are present.
+Automatic onboarding is disabled in the current startup configuration. Do not enable it until the Meta app, permissions, credentials, and target phone number have been independently confirmed.
 
 **3. Or trigger manually**
 ```bash
