@@ -1,7 +1,7 @@
 {
   "name": "flowforge-whatsapp-backend",
   "version": "1.0.0",
-  "description": "FlowForge AI Consulting — WhatsApp Business Agent Backend (Meta Model API)",
+  "description": "FlowForge Consulting — WhatsApp Business Agent Backend (Meta Model API)",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -18,7 +18,7 @@
     "meta-model-api",
     "muse-spark"
   ],
-  "author": "FlowForge AI Consulting",
+  "author": "FlowForge Consulting",
   "license": "ISC",
   "dependencies": {
     "axios": "^1.19.0",
