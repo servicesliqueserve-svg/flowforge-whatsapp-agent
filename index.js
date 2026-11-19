@@ -2,41 +2,33 @@ require("dotenv").config();
 const express = require("express");
 const { verifyRequestSignature } = require("./webhook-signature");
 const { handleIncoming, verifyWebhook } = require("./webhook");
-const { onboardAgent, getStoredAgentId } = require("./onboarding");
+const { onboardAgent } = require("./onboarding");
 const { getForgeReply } = require("./agent");
+const {
+  isOnboardingEnabled,
+  hasValidBearerToken,
+  getAllowedOrigins,
+} = require("./security");
 
 const app = express();
-app.use(express.json({ verify: verifyRequestSignature }));
+app.disable("x-powered-by");
+app.use(express.json({ limit: "256kb", verify: verifyRequestSignature }));
 
 const PORT = process.env.PORT || 3000;
 
-// ── Health check ──────────────────────────────────────────
 app.get("/", (req, res) => {
+  res.set("Cache-Control", "no-store");
   res.json({
     status: "online",
-    service: "FlowForge WhatsApp Agent — Forge",
-    number: process.env.WHATSAPP_PHONE_NUMBER_DISPLAY || "062 822 7013",
-    agent_id: getStoredAgentId() || "not yet onboarded",
+    service: "Forge API",
     timestamp: new Date().toISOString(),
   });
 });
 
-// ── Webhook verification (Meta handshake) ─────────────────
 app.get("/webhook", verifyWebhook);
-
-// ── Incoming WhatsApp messages ────────────────────────────
 app.post("/webhook", handleIncoming);
 
-// ── Website Forge AI API ──────────────────────────────────
-// Allows the FlowForge website to use the same Forge AI
-// engine as WhatsApp without exposing API credentials.
-
-const ALLOWED_ORIGINS = new Set([
-  "https://flowforgei.co.za",
-  "https://www.flowforgei.co.za",
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-]);
+const ALLOWED_ORIGINS = new Set(getAllowedOrigins());
 
 app.use("/api", (req, res, next) => {
   const origin = req.headers.origin;
@@ -57,6 +49,8 @@ app.use("/api", (req, res, next) => {
 });
 
 app.post("/api/whatsapp/message", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+
   try {
     const { message, sessionId } = req.body || {};
 
@@ -79,9 +73,7 @@ app.post("/api/whatsapp/message", async (req, res) => {
         ? sessionId.trim().slice(0, 100)
         : `web-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-    console.log(
-      `[Web Chat] Message from ${userId}: "${message.trim()}"`
-    );
+    console.info("[Web Chat] Request accepted.");
 
     const reply = await getForgeReply(userId, message.trim());
 
@@ -91,94 +83,75 @@ app.post("/api/whatsapp/message", async (req, res) => {
       sessionId: userId,
     });
   } catch (err) {
-    console.error("[Web Chat] Error:", err.message);
+    console.error(
+      "[Web Chat] Request failed:",
+      err.response?.status || err.code || "unknown error"
+    );
 
     return res.status(500).json({
       success: false,
-      error:
-        "Forge is temporarily unavailable. Please try again shortly.",
+      error: "Forge is temporarily unavailable. Please try again shortly.",
     });
   }
 });
 
-// ── Manual onboarding trigger ─────────────────────────────
-// POST /onboard — call this once to register Forge with Meta
+// Disabled by default. Enable only for an approved, one-time admin action.
 app.post("/onboard", async (req, res) => {
-  const entityId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  res.set("Cache-Control", "no-store");
 
-  if (!entityId || !accessToken) {
-    return res.status(400).json({
+  if (!isOnboardingEnabled()) {
+    return res.sendStatus(404);
+  }
+
+  if (!hasValidBearerToken(req, process.env.ONBOARDING_ADMIN_TOKEN)) {
+    return res.status(401).json({
       success: false,
-      error:
-        "WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN must be set in .env",
+      error: "Unauthorised.",
     });
   }
 
-  const result = await onboardAgent(entityId, accessToken);
-  const status = result.success ? 201 : 400;
-
-  if (result.success) {
-    console.log(
-      `[Server] 🎉 Agent ID ${result.agent_id} — save this as META_AGENT_ID in .env`
-    );
-  }
-
-  res.status(status).json(result);
-});
-
-// ── Auto-onboard on startup (if credentials are ready) ───
-async function autoOnboard() {
   const entityId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-  const agentId = getStoredAgentId();
-
-  if (agentId) {
-    console.log(
-      `[Onboarding] ✅ Already onboarded — Agent ID: ${agentId}`
-    );
-    return;
-  }
 
   if (!entityId || !accessToken) {
-    console.log(
-      `[Onboarding] ⏳ Waiting for WhatsApp credentials — skipping auto-onboard`
-    );
-    console.log(
-      `[Onboarding]    Set WHATSAPP_PHONE_NUMBER_ID + WHATSAPP_ACCESS_TOKEN in .env`
-    );
-    console.log(
-      `[Onboarding]    Then POST /onboard to register Forge with Meta`
-    );
-    return;
+    return res.status(503).json({
+      success: false,
+      error: "Onboarding is not configured.",
+    });
   }
 
-  console.log(
-    `[Onboarding] 🔄 Credentials found — attempting auto-onboard...`
-  );
+  try {
+    const result = await onboardAgent(entityId, accessToken);
 
-  const result = await onboardAgent(entityId, accessToken);
+    if (!result.success) {
+      console.error("[Onboarding] Admin-triggered onboarding failed.");
+      return res.status(502).json({
+        success: false,
+        error: "Onboarding failed. Check restricted service logs.",
+      });
+    }
 
-  if (result.success) {
-    console.log(
-      `\n[Onboarding] 🎉 SUCCESS! Add this to your .env:`
+    console.info("[Onboarding] Admin-triggered onboarding completed.");
+    return res.status(201).json({
+      success: true,
+      agent_id: result.agent_id,
+    });
+  } catch (err) {
+    console.error(
+      "[Onboarding] Admin-triggered request failed:",
+      err.response?.status || err.code || "unknown error"
     );
-    console.log(`             META_AGENT_ID=${result.agent_id}\n`);
+    return res.status(502).json({
+      success: false,
+      error: "Onboarding failed. Check restricted service logs.",
+    });
   }
+});
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Forge API listening on port ${PORT}`);
+  });
 }
 
-// ── Start server ──────────────────────────────────────────
-app.listen(PORT, async () => {
-  console.log(`
-╔═══════════════════════════════════════════════╗
-║   FlowForge WhatsApp Agent — Forge   ONLINE   ║
-║   Port    : ${PORT}                              ║
-║   Number  : 062 822 7013                      ║
-║   Webhook : POST /webhook                     ║
-║   Website : POST /api/whatsapp/message       ║
-║   Onboard : POST /onboard                     ║
-╚═══════════════════════════════════════════════╝
-  `);
-
-  // await autoOnboard();
-});
+module.exports = app;

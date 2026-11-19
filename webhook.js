@@ -3,22 +3,22 @@ const { sendWhatsAppMessage, markRead } = require("./whatsapp");
 
 // ── Meta webhook verification handshake ──────────────────
 function verifyWebhook(req, res) {
-  const mode      = req.query["hub.mode"];
-  const token     = req.query["hub.verify_token"];
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
 
   if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-    console.log("[Webhook] ✅ Verified by Meta");
+    console.info("[Webhook] Meta verification succeeded.");
     return res.status(200).send(challenge);
   }
 
-  console.warn("[Webhook] ❌ Verification failed — token mismatch");
-  res.sendStatus(403);
+  console.warn("[Webhook] Meta verification rejected.");
+  return res.sendStatus(403);
 }
 
 // ── Handle incoming WhatsApp messages ────────────────────
 async function handleIncoming(req, res) {
-  // Acknowledge immediately so Meta doesn't retry
+  // Existing acknowledgement behavior is retained pending durable queue work.
   res.sendStatus(200);
 
   try {
@@ -32,31 +32,32 @@ async function handleIncoming(req, res) {
         if (!value?.messages?.length) continue;
 
         for (const msg of value.messages) {
-          // Only handle text messages for now
           if (msg.type !== "text") {
-            await sendWhatsAppMessage(msg.from, "Hi! I can currently handle text messages only. Please type your question and I'll be happy to help 🙏");
+            await sendWhatsAppMessage(
+              msg.from,
+              "Hi! I can currently handle text messages only. Please type your question and I'll be happy to help 🙏"
+            );
             continue;
           }
 
-          const from    = msg.from;          // user's WhatsApp number
-          const text    = msg.text.body;     // message content
-          const msgId   = msg.id;
+          const from = msg.from;
+          const text = msg.text.body;
+          const msgId = msg.id;
 
-          console.log(`[Message] From: ${from} | Text: "${text}"`);
+          // Do not write customer message content, phone numbers, or message IDs to logs.
+          console.info("[Webhook] Incoming text message accepted for processing.");
 
-          // Mark as read
           await markRead(msgId);
-
-          // Get AI reply from Forge
           const reply = await getForgeReply(from, text);
-
-          // Send reply back on WhatsApp
           await sendWhatsAppMessage(from, reply);
         }
       }
     }
   } catch (err) {
-    console.error("[Webhook] Error:", err.message);
+    console.error(
+      "[Webhook] Message processing failed:",
+      err.response?.status || err.code || "unknown error"
+    );
   }
 }
 
