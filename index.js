@@ -12,12 +12,11 @@ const {
 
 const app = express();
 app.disable("x-powered-by");
-app.use(express.json({ limit: "32kb", verify: verifyRequestSignature }));
+app.use(express.json({ limit: "256kb", verify: verifyRequestSignature }));
 
 const PORT = process.env.PORT || 3000;
 
 // ── Health check ──────────────────────────────────────────
-// Keep the public health response operational, not identificatory.
 app.get("/", (req, res) => {
   res.set("Cache-Control", "no-store");
   res.json({
@@ -27,13 +26,9 @@ app.get("/", (req, res) => {
   });
 });
 
-// ── Webhook verification (Meta handshake) ─────────────────
 app.get("/webhook", verifyWebhook);
-
-// ── Incoming WhatsApp messages ────────────────────────────
 app.post("/webhook", handleIncoming);
 
-// ── Website Forge AI API ──────────────────────────────────
 const ALLOWED_ORIGINS = new Set(getAllowedOrigins());
 
 app.use("/api", (req, res, next) => {
@@ -101,7 +96,6 @@ app.post("/api/whatsapp/message", async (req, res) => {
   }
 });
 
-// ── Manual Meta onboarding trigger ────────────────────────
 // Disabled by default. Enable only for an approved, one-time admin action.
 app.post("/onboard", async (req, res) => {
   res.set("Cache-Control", "no-store");
@@ -155,7 +149,6 @@ app.post("/onboard", async (req, res) => {
   }
 });
 
-// ── Start server ──────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`Forge API listening on port ${PORT}`);
 });
