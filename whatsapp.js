@@ -1,6 +1,14 @@
 const axios = require("axios");
 
-const BASE_URL = "https://graph.facebook.com/v19.0";
+const REQUEST_TIMEOUT_MS = 15000;
+
+function getBaseUrl() {
+  const version = process.env.WHATSAPP_GRAPH_API_VERSION || "v27.0";
+  if (!/^v\d+\.\d+$/.test(version)) {
+    throw new Error("WHATSAPP_GRAPH_API_VERSION must use the format vNN.N.");
+  }
+  return `https://graph.facebook.com/${version}`;
+}
 
 function getHeaders() {
   return {
@@ -11,7 +19,7 @@ function getHeaders() {
 
 // ── Send a text message ───────────────────────────────────
 async function sendWhatsAppMessage(to, text) {
-  const url = `${BASE_URL}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const url = `${getBaseUrl()}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
 
   const payload = {
     messaging_product: "whatsapp",
@@ -22,19 +30,24 @@ async function sendWhatsAppMessage(to, text) {
   };
 
   try {
-    const res = await axios.post(url, payload, { headers: getHeaders() });
-    console.log(`[WhatsApp] ✅ Sent to ${to}`);
+    const res = await axios.post(url, payload, {
+      headers: getHeaders(),
+      timeout: REQUEST_TIMEOUT_MS,
+    });
+    console.info("[WhatsApp] Outbound message accepted by Graph API.");
     return res.data;
   } catch (err) {
-    const detail = err.response?.data || err.message;
-    console.error(`[WhatsApp] ❌ Send failed:`, detail);
+    console.error(
+      "[WhatsApp] Outbound message failed:",
+      err.response?.status || err.code || "unknown error"
+    );
     throw err;
   }
 }
 
-// ── Mark incoming message as read (shows blue ticks) ─────
+// ── Mark incoming message as read ─────────────────────────
 async function markRead(messageId) {
-  const url = `${BASE_URL}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const url = `${getBaseUrl()}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
 
   const payload = {
     messaging_product: "whatsapp",
@@ -43,19 +56,17 @@ async function markRead(messageId) {
   };
 
   try {
-    await axios.post(url, payload, { headers: getHeaders() });
-    console.log(`[WhatsApp] 👁 Marked read: ${messageId}`);
+    await axios.post(url, payload, {
+      headers: getHeaders(),
+      timeout: REQUEST_TIMEOUT_MS,
+    });
   } catch (err) {
-    // Non-critical — don't throw
-    console.warn(`[WhatsApp] Could not mark read: ${err.message}`);
+    // Non-critical; never log message identifiers or provider response bodies.
+    console.warn(
+      "[WhatsApp] Read receipt failed:",
+      err.response?.status || err.code || "unknown error"
+    );
   }
 }
 
-// ── Send a typing indicator (optional, cosmetic) ─────────
-async function sendTyping(to) {
-  // WhatsApp Business API doesn't support typing indicators natively,
-  // but you can add a brief delay before sending to feel more human.
-  return new Promise((resolve) => setTimeout(resolve, 1200));
-}
-
-module.exports = { sendWhatsAppMessage, markRead, sendTyping };
+module.exports = { sendWhatsAppMessage, markRead };
