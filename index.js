@@ -16,7 +16,6 @@ app.use(express.json({ limit: "256kb", verify: verifyRequestSignature }));
 
 const PORT = process.env.PORT || 3000;
 
-// ── Health check ──────────────────────────────────────────
 app.get("/", (req, res) => {
   res.set("Cache-Control", "no-store");
   res.json({
@@ -149,6 +148,10 @@ app.post("/onboard", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Forge API listening on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Forge API listening on port ${PORT}`);
+  });
+}
+
+module.exports = app;
